@@ -26,23 +26,44 @@ public class CsvCombiner {
         }
 
         List<String> csvFileNames = getCsvFilesFromDirectory(directoryPath);
-        List<String> masterSchema = getCsvSchema(csvFileNames.get(0));
+        String sourceFilePath = String.format("%s/%s", directory, csvFileNames.get(0));
+        List<String> masterSchema = getCsvSchema(sourceFilePath);
 
         //Create new empty CSV to hold combined data
-        String combinedFilename = createNewCsvFile(directory);
+        String destinationFilePath = createNewCsvFile(directory);
 
         //Append header to master file
+        writeHeaderToDestinationFile(destinationFilePath, masterSchema);
 
         //Append contents of all files to the combined file
         for(String filename : csvFileNames) {
+            sourceFilePath = String.format("%s/%s", directory, filename);
 
             //Validate that the schema matches the master schema
-            List<String> schema = getCsvSchema(filename);
+            List<String> schema = getCsvSchema(sourceFilePath);
             if (!schema.equals(masterSchema))
                 throw new CsvSchemaMismatchException("CSV schema did not match master schema");
 
             //Read contents of CSV and append to master file
-            appendContentsToCombinedFile(filename, combinedFilename);
+            appendContentsToCombinedFile(sourceFilePath, destinationFilePath);
+        }
+    }
+
+    /**
+     * Writes the CSV header to the destination file
+     *
+     * @param  destinationFilePath  the path of the file that will be written to
+     * @param  schema an ordered list of the CSV file header fields
+     */
+    public static void writeHeaderToDestinationFile(String destinationFilePath, List<String> schema) {
+        String header = String.join(",", schema);
+        try {
+            BufferedWriter bw = new BufferedWriter(new FileWriter(destinationFilePath));
+            bw.write(header + "\n");
+            bw.close();
+        }
+        catch (IOException ex) {
+            ex.printStackTrace();
         }
     }
 
@@ -82,6 +103,7 @@ public class CsvCombiner {
             BufferedReader reader = new BufferedReader(new FileReader(filename));
             String header = reader.readLine();
             fields = Arrays.asList(header.split(","));
+            reader.close();
         }
         catch (FileNotFoundException ex) {
             ex.printStackTrace();
@@ -97,16 +119,17 @@ public class CsvCombiner {
      * Reads the non-header row contents of the input CSV file
      * and appends to the combined file.
      *
-     * @param  filename  the name of the CSV file whose contents will be appended to the combined file
+     * @param  sourceFilePath  the path of the CSV file whose contents will be appended to the combined file
+     * @param  destinationFilePath the path of the CSV that will be appended to
      */
-    public static void appendContentsToCombinedFile(String filename, String combinedFilename) {
+    public static void appendContentsToCombinedFile(String sourceFilePath, String destinationFilePath) {
         try {
-            RandomAccessFile rf = new RandomAccessFile(filename, "rw");
+            RandomAccessFile rf = new RandomAccessFile(sourceFilePath, "rw");
 
             //Read the header row to set the pointer to the start of the next row
             rf.readLine();
 
-            BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream("combined.csv", true));
+            BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(destinationFilePath, true));
 
             int i;
             byte[] b = new byte[16384];
